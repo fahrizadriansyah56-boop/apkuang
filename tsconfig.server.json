@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["server/index.ts", "src/data/mockData.ts", "src/types/finance.ts"]
+  "include": ["server/**/*.ts", "api/**/*.ts", "src/data/mockData.ts", "src/types/finance.ts"]
 }

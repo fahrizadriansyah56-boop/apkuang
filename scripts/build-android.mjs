@@ -21,7 +21,7 @@ const isLocalHost = apiHostname === 'localhost'
   || apiHostname === '[::1]';
 
 if (apiUrl.protocol !== 'https:' || isLocalHost || apiUrl.username || apiUrl.password || apiUrl.pathname !== '/' || apiUrl.search || apiUrl.hash) {
-  console.error('VITE_API_BASE_URL must be the public HTTPS API origin, for example https://kaspanitia-api.onrender.com.');
+  console.error('VITE_API_BASE_URL must be the public HTTPS API origin, for example https://your-app.vercel.app.');
   process.exit(1);
 }
 

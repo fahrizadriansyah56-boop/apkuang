@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "dev:api": "tsx watch server/index.ts",
-    "start:api": "tsx server/index.ts",
+    "dev:api": "tsx watch server/start.ts",
+    "start:api": "tsx server/start.ts",
     "build": "vite build",
     "build:apk": "node scripts/build-android.mjs",
     "sync:ios": "npm run build && cap sync ios",

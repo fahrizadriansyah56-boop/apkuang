@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import cors from 'cors';
 import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
-import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -12,7 +11,6 @@ import { INITIAL_COMMITTEE_FEES, INITIAL_COMMITTEE_INFO, INITIAL_DIVISIONS, INIT
 const { Pool } = pg;
 const scrypt = promisify(scryptCallback);
 const app = express();
-const port = Number(process.env.PORT || 4000);
 const databaseUrl = process.env.DATABASE_URL;
 const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
 const adminPassword = process.env.ADMIN_PASSWORD;
@@ -26,7 +24,13 @@ if (!adminEmail || !adminPassword || adminPassword.length < 12) {
   throw new Error('Set ADMIN_EMAIL and an ADMIN_PASSWORD with at least 12 characters.');
 }
 
-const pool = new Pool({ connectionString: databaseUrl, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : undefined });
+const pool = new Pool({
+  connectionString: databaseUrl,
+  max: 5,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
+});
 const roles = ['admin', 'treasurer', 'editor', 'viewer'] as const;
 type Role = (typeof roles)[number];
 let dummyPasswordHash = '';
@@ -73,7 +77,7 @@ const createSession = async (user: AuthUser) => {
   return { token, user };
 };
 
-const initializeDatabase = async () => {
+const initializeDatabaseSchema = async () => {
   dummyPasswordHash = await hashPassword(randomBytes(32).toString('hex'));
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -136,6 +140,15 @@ const initializeDatabase = async () => {
   await pool.query('DELETE FROM sessions WHERE expires_at <= NOW()');
 };
 
+let databaseInitialization: Promise<void> | undefined;
+export const initializeDatabase = () => {
+  databaseInitialization ??= initializeDatabaseSchema().catch(error => {
+    databaseInitialization = undefined;
+    throw error;
+  });
+  return databaseInitialization;
+};
+
 const authenticationRequired = async (req: Request, res: Response, next: NextFunction) => {
   const token = req.header('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return res.status(401).json({ error: 'Silakan login kembali.' });
@@ -174,6 +187,7 @@ const authLimiter = rateLimit({
 });
 
 app.disable('x-powered-by');
+app.set('trust proxy', process.env.VERCEL === '1' ? 1 : false);
 app.use(helmet());
 app.use(cors({
   origin(origin, callback) {
@@ -184,7 +198,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(resolve(process.cwd(), 'dist')));
+app.use((req, _res, next) => {
+  const requestUrl = new URL(req.url, 'http://localhost');
+  const route = requestUrl.searchParams.get('route');
+  if (route !== null) {
+    requestUrl.searchParams.delete('route');
+    req.url = `/api/${route}${requestUrl.search}`;
+  }
+  next();
+});
+app.use((_req, _res, next) => {
+  initializeDatabase().then(() => next()).catch(next);
+});
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -338,25 +363,10 @@ app.patch('/api/admin/users/:id/role', authenticationRequired, requireRole('admi
   }
 });
 
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/') || !req.accepts('html')) return next();
-  return res.sendFile(resolve(process.cwd(), 'dist', 'index.html'));
-});
-
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error('API request failed:', error);
   if (res.headersSent) return;
   return res.status(500).json({ error: 'Terjadi kesalahan pada server.' });
 });
 
-const start = async () => {
-  await initializeDatabase();
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`KasPanitia API listening on port ${port}`);
-  });
-};
-
-start().catch(error => {
-  console.error('Failed to start KasPanitia API:', error);
-  process.exitCode = 1;
-});
+export default app;
