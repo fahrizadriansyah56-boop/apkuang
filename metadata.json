@@ -1,0 +1,6 @@
+{
+  "name": "KasPanitia - Sistem Manajemen Keuangan Panitia",
+  "description": "Dashboard manajemen keuangan panitia event, budgeting RAB divisi, pencatatan transaksi pemasukan & pengeluaran, tracking iuran & sponsorship, serta laporan pertanggungjawaban (LPJ).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

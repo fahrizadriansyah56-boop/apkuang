@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*.jks
+*.keystore
+.idea/
+.vscode/
+android/.gradle/
+android/**/build/
+ios/DerivedData/
+ios/**/build/
