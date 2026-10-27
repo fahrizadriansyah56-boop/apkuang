@@ -1,24 +1,16 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Menu, Plus, RefreshCw, UsersRound } from 'lucide-react';
+import { Menu, Plus, RefreshCw } from 'lucide-react';
 import { formatRupiah } from '../utils/formatters';
 import { ConfirmationModal } from './ConfirmationModal';
-import { AdminUsersModal } from './AdminUsersModal';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
-  userName?: string;
-  onLogout?: () => void;
-  accessToken: string;
-  userId: string;
-  isAdmin: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, userName, onLogout, accessToken, userId, isAdmin }) => {
-  const { activePage, openTransactionModal, currentBalance, committeeInfo, resetToDefaultData, canWrite, userRole } = useFinance();
+export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
+  const { activePage, openTransactionModal, currentBalance, committeeInfo, resetToDefaultData, canWrite } = useFinance();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
-  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
-  const roleLabels = { admin: 'Admin', treasurer: 'Bendahara', editor: 'Anggota', viewer: 'Hanya lihat' };
 
   const pageTitles: Record<string, { title: string; subtitle: string }> = {
     dashboard: {
@@ -85,36 +77,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, userName, onLo
 
         {/* Zone 3: Primary Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          {userName && (
-            <div className="hidden sm:flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
-                {userName.charAt(0).toUpperCase()}
-              </span>
-              <span className="font-medium">{userName}</span>
-              <span className="text-slate-400">· {roleLabels[userRole]}</span>
-            </div>
-          )}
-
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsUsersModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-            >
-              <UsersRound className="h-4 w-4" />
-              <span className="hidden sm:inline">Pengguna</span>
-            </button>
-          )}
-
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shadow-xs cursor-pointer"
-            >
-              <span>Keluar</span>
-            </button>
-          )}
-
           {canWrite && (
             <>
               <button
@@ -149,12 +111,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, userName, onLo
           setIsResetConfirmOpen(false);
         }}
         onCancel={() => setIsResetConfirmOpen(false)}
-      />
-      <AdminUsersModal
-        isOpen={isUsersModalOpen}
-        accessToken={accessToken}
-        currentUserId={userId}
-        onClose={() => setIsUsersModalOpen(false)}
       />
     </>
   );

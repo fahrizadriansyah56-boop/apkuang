@@ -17,8 +17,6 @@ import {
   INITIAL_SPONSORSHIPS,
   INITIAL_TRANSACTIONS,
 } from '../data/mockData';
-import { UserRole } from '../types/auth';
-import { ApiError, apiRequest } from '../utils/api';
 
 interface ToastData {
   id: string;
@@ -38,7 +36,6 @@ interface FinanceContextType {
   committeeFees: CommitteeFee[];
   sponsorships: Sponsorship[];
   reminders: ReminderItem[];
-  userRole: UserRole;
   canWrite: boolean;
   isDataLoading: boolean;
   dataLoadError: string | null;
@@ -125,8 +122,6 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 interface FinanceProviderProps {
   children: ReactNode;
-  accessToken: string;
-  userRole: UserRole;
 }
 
 interface FinanceData {
@@ -138,7 +133,22 @@ interface FinanceData {
   reminders: ReminderItem[];
 }
 
-export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children, accessToken, userRole }) => {
+const FINANCE_STORAGE_KEY = 'kaspanitia_finance_data_v1';
+
+const isFinanceData = (value: unknown): value is FinanceData => {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as Partial<FinanceData>;
+  return Boolean(
+    data.committeeInfo && typeof data.committeeInfo === 'object' &&
+    Array.isArray(data.divisions) &&
+    Array.isArray(data.transactions) &&
+    Array.isArray(data.committeeFees) &&
+    Array.isArray(data.sponsorships) &&
+    Array.isArray(data.reminders)
+  );
+};
+
+export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) => {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const [committeeInfo, setCommitteeInfo] = useState<CommitteeInfo>(INITIAL_COMMITTEE_INFO);
   const [divisions, setDivisions] = useState<DivisionBudget[]>(INITIAL_DIVISIONS);
@@ -149,9 +159,8 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children, acce
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [dataLoadError, setDataLoadError] = useState<string | null>(null);
   const [isDataInitialized, setIsDataInitialized] = useState(false);
-  const dataVersion = React.useRef(0);
   const skipNextPersist = React.useRef(false);
-  const canWrite = userRole !== 'viewer';
+  const canWrite = true;
 
   // Modal & Toast states
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -174,17 +183,15 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children, acce
 
   const rejectReadOnly = () => {
     if (canWrite) return false;
-    showToast('Akun ini hanya memiliki akses untuk melihat data.', 'error');
     return true;
   };
 
   useEffect(() => {
-    let isCurrent = true;
-    setIsDataLoading(true);
-    setDataLoadError(null);
-    apiRequest<{ data: FinanceData; version: number }>('/api/data', accessToken)
-      .then(({ data, version }) => {
-        if (!isCurrent) return;
+    try {
+      const saved = window.localStorage.getItem(FINANCE_STORAGE_KEY);
+      if (saved) {
+        const data: unknown = JSON.parse(saved);
+        if (!isFinanceData(data)) throw new Error('Format data tersimpan tidak valid.');
         skipNextPersist.current = true;
         setCommitteeInfo(data.committeeInfo);
         setDivisions(data.divisions);
@@ -192,22 +199,17 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children, acce
         setCommitteeFees(data.committeeFees);
         setSponsorships(data.sponsorships);
         setReminders(data.reminders);
-        dataVersion.current = version;
-        setIsDataInitialized(true);
-      })
-      .catch(error => {
-        if (isCurrent) setDataLoadError(error instanceof Error ? error.message : 'Gagal memuat data panitia.');
-      })
-      .finally(() => {
-        if (isCurrent) setIsDataLoading(false);
-      });
-    return () => {
-      isCurrent = false;
-    };
-  }, [accessToken]);
+      }
+      setIsDataInitialized(true);
+    } catch (error) {
+      setDataLoadError(error instanceof Error ? error.message : 'Gagal memuat data lokal.');
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isDataInitialized || !canWrite) return;
+    if (!isDataInitialized) return;
     if (skipNextPersist.current) {
       skipNextPersist.current = false;
       return;
@@ -220,37 +222,12 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children, acce
       sponsorships,
       reminders,
     };
-    const timer = window.setTimeout(() => {
-      apiRequest<{ version: number }>('/api/data', accessToken, {
-        method: 'PUT',
-        body: JSON.stringify({ data, version: dataVersion.current }),
-      })
-        .then(({ version }) => {
-          dataVersion.current = version;
-        })
-        .catch(async error => {
-          if (error instanceof ApiError && error.status === 409) {
-            try {
-              const latest = await apiRequest<{ data: FinanceData; version: number }>('/api/data', accessToken);
-              skipNextPersist.current = true;
-              dataVersion.current = latest.version;
-              setCommitteeInfo(latest.data.committeeInfo);
-              setDivisions(latest.data.divisions);
-              setTransactions(latest.data.transactions);
-              setCommitteeFees(latest.data.committeeFees);
-              setSponsorships(latest.data.sponsorships);
-              setReminders(latest.data.reminders);
-              showToast('Data berubah di perangkat lain. Data terbaru dimuat; perubahan yang belum tersimpan tidak diterapkan.', 'error');
-            } catch (reloadError) {
-              showToast(reloadError instanceof Error ? reloadError.message : 'Gagal memuat data terbaru.', 'error');
-            }
-            return;
-          }
-          showToast(error instanceof Error ? error.message : 'Gagal menyimpan data panitia.', 'error');
-        });
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [accessToken, canWrite, committeeInfo, divisions, transactions, committeeFees, sponsorships, reminders, isDataInitialized]);
+    try {
+      window.localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      showToast(error instanceof Error ? `Gagal menyimpan data di perangkat ini: ${error.message}` : 'Gagal menyimpan data di perangkat ini.', 'error');
+    }
+  }, [committeeInfo, divisions, transactions, committeeFees, sponsorships, reminders, isDataInitialized]);
 
   // Core Automatic Calculations
   const totalIncome = useMemo(() => {
@@ -635,7 +612,6 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children, acce
         committeeFees,
         sponsorships,
         reminders,
-        userRole,
         canWrite,
         isDataLoading,
         dataLoadError,
