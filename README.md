@@ -42,7 +42,7 @@ On a Mac with Xcode installed, set `VITE_API_BASE_URL` to the Vercel HTTPS origi
    - `DATABASE_SSL`: set to `true` if the provider requires TLS; otherwise use the provider's recommended value.
    - `ADMIN_EMAIL`: the email for the initial administrator.
    - `ADMIN_PASSWORD`: a unique password of at least 12 characters.
-   - `CORS_ORIGINS`: `https://localhost,capacitor://localhost` for native app requests.
+   - `CORS_ORIGINS`: `https://localhost,capacitor://localhost` for native app requests. The Vercel deployment, branch, and production domains are allowed automatically by the API.
    Do not send credentials in chat or commit them to GitHub. Leave `VITE_API_BASE_URL` unset for the Vercel web app; it uses the same-origin API.
 5. Deploy the project. On the deployed Vercel domain, open `/api/health`; it should return `{"status":"ok"}`. Then test registration and login. The API creates database tables and the initial admin on its first request.
 6. On a computer with Node.js, JDK, and Android SDK installed, set `VITE_API_BASE_URL` to the Vercel HTTPS origin and run `npm run build:apk`. In PowerShell:

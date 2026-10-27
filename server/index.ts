@@ -14,10 +14,17 @@ const app = express();
 const databaseUrl = process.env.DATABASE_URL;
 const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
 const adminPassword = process.env.ADMIN_PASSWORD;
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://localhost')
+const configuredOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://localhost')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+const vercelOrigins = process.env.VERCEL === '1'
+  ? ['VERCEL_URL', 'VERCEL_BRANCH_URL', 'VERCEL_PROJECT_PRODUCTION_URL']
+    .map(key => process.env[key]?.trim())
+    .filter((domain): domain is string => Boolean(domain))
+    .map(domain => `https://${domain.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`)
+  : [];
+const allowedOrigins = new Set([...configuredOrigins, ...vercelOrigins]);
 
 if (!databaseUrl) throw new Error('DATABASE_URL must be set.');
 if (!adminEmail || !adminPassword || adminPassword.length < 12) {
@@ -191,7 +198,7 @@ app.set('trust proxy', process.env.VERCEL === '1' ? 1 : false);
 app.use(helmet());
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
     return callback(new Error('Origin is not allowed by CORS.'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
